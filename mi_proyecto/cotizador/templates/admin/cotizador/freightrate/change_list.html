@@ -1,0 +1,11 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+  {% if perms.cotizador.add_freightrate and perms.cotizador.change_freightrate %}
+  <li>
+    <a href="{% url 'admin:cotizador_freightrate_import_excel' %}">Vincular Excel de tarifas</a>
+  </li>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}
