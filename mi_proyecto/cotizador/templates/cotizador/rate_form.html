@@ -1,0 +1,70 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if editing %}Editar tarifa{% else %}Cargar tarifa{% endif %} | CINTAC</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'cotizador/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}">
+</head>
+<body class="login-page">
+  <main class="login-card rate-entry-card">
+    <a class="login-brand" href="{% url 'rates' %}" aria-label="Volver a tarifas">CINTAC<span>.</span></a>
+    <h1>{% if editing %}Editar tarifa{% else %}Cargar tarifa{% endif %}</h1>
+    <p class="login-description">Todos los campos se seleccionan desde catálogos definidos. Los fletes se ofrecen en pasos de USD 50 o CLP 10.000; el tránsito, de 1 a 120 días.</p>
+    {% if form.non_field_errors %}<div class="alert" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    <form method="post" class="rate-entry-form">
+      {% csrf_token %}
+      {% for field in form %}
+        <div class="rate-entry-field">
+          {{ field.label_tag }}
+          {{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {% for error in field.errors %}<p class="login-field-error">{{ error }}</p>{% endfor %}
+        </div>
+      {% endfor %}
+      <div class="rate-entry-actions">
+        <button class="login-button" type="submit">{% if editing %}Guardar cambios{% else %}Guardar tarifa{% endif %}</button>
+        <a href="{% url 'rates' %}">Cancelar</a>
+      </div>
+    </form>
+  </main>
+  <script>
+    (() => {
+      const currency = document.getElementById('id_currency');
+      const amountFields = [
+        'id_freight_20',
+        'id_freight_20_max',
+        'id_freight_40',
+        'id_freight_40_max',
+      ].map((id) => document.getElementById(id)).filter(Boolean);
+      if (!currency || !amountFields.length) return;
+
+      const refreshAmounts = () => {
+        const isClp = currency.value === 'CLP';
+        const maximum = isClp ? 20000000 : 20000;
+        const step = isClp ? 10000 : 50;
+        const formatter = new Intl.NumberFormat('es-CL', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+        for (const field of amountFields) {
+          const previousValue = field.value;
+          const optional = field.name.endsWith('_max');
+          field.replaceChildren();
+          if (optional) field.add(new Option('Sin máximo', ''));
+          for (let amount = 0; amount <= maximum; amount += step) {
+            const value = `${amount}.00`;
+            field.add(new Option(formatter.format(amount), value));
+          }
+          if ([...field.options].some((option) => option.value === previousValue)) {
+            field.value = previousValue;
+          }
+        }
+      };
+      currency.addEventListener('change', refreshAmounts);
+    })();
+  </script>
+</body>
+</html>

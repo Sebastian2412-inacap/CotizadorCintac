@@ -1,0 +1,120 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tarifas cargadas | CINTAC</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'cotizador/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <a class="wordmark" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+      <div class="rail-label">COMEX</div>
+      <nav aria-label="Navegación principal">
+        <a class="nav-link" href="{% url 'quote' %}"><span class="nav-mark"></span>Cotizador</a>
+        <a class="nav-link active" href="{% url 'rates' %}" aria-current="page"><span class="nav-mark"></span>Tarifas</a>
+      </nav>
+      <div class="rail-foot"><span class="status-dot"></span>Datos del informe<br><small>Actualización manual protegida</small></div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="breadcrumb">Operaciones <span>/</span> Tarifas</div>
+        <div class="account-controls">
+          <span class="account-name">{{ request.user.username }}</span>
+          {% if perms.cotizador.view_freightrate %}
+            <a class="admin-link" href="{% url 'admin:cotizador_freightrate_changelist' %}">Administración <span aria-hidden="true">↗</span></a>
+          {% endif %}
+          <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="logout-button" type="submit">Cerrar sesión</button>
+          </form>
+        </div>
+      </header>
+
+      <div class="page-wrap rates-wrap">
+        <section class="intro rates-intro">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-line"></span>ANTECEDENTES DE FLETE</div>
+            <h1>Tarifas <em>cargadas</em></h1>
+            <p>Consulta los valores guardados que se utilizan en el cotizador.</p>
+          </div>
+          <p class="rates-summary">{{ total_rates }} tarifa{% if total_rates != 1 %}s{% endif %}{% if search %} encontrada{% if total_rates != 1 %}s{% endif %}{% endif %}</p>
+        </section>
+
+        {% if messages %}{% for message in messages %}<div class="alert" role="status">{{ message }}</div>{% endfor %}{% endif %}
+        <nav class="rates-tabs" aria-label="Filtrar tarifas por operación">
+          <a class="{% if operation == 'all' %}active{% endif %}" href="{% url 'rates' %}?operation=all">Todas</a>
+          <a class="{% if operation == 'import' %}active{% endif %}" href="{% url 'rates' %}?operation=import">Importaciones</a>
+          <a class="{% if operation == 'export' %}active{% endif %}" href="{% url 'rates' %}?operation=export">Exportaciones</a>
+        </nav>
+
+        <form class="rates-filter" method="get" role="search">
+          <input type="hidden" name="operation" value="{{ operation }}">
+          <input type="search" name="q" value="{{ search }}" placeholder="Buscar país, puerto, destino, embarcador o fuente" aria-label="Buscar tarifas">
+          <button type="submit">Buscar tarifas</button>
+        </form>
+
+        {% if can_add_rates %}
+          <div class="rates-actions"><a class="rates-add-button" href="{% url 'rate_create' %}">+ Cargar tarifa</a></div>
+        {% endif %}
+
+        <section class="panel rates-table-panel" aria-label="Listado de tarifas">
+          {% if rate_rows %}
+            <div class="rates-table-scroll">
+              <table class="rates-table">
+                <thead>
+                  <tr>
+                    <th>Origen</th>
+                    <th>Destino</th>
+                    <th>Contenedor 20'</th>
+                    <th>Contenedor 40'</th>
+                    <th>Tránsito</th>
+                    <th>Tipo / embarcador</th>
+                    <th>Fuente y actualización</th>
+                    {% if can_edit_rates or can_delete_rates %}<th>Acciones</th>{% endif %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in rate_rows %}
+                    {% with rate=row.rate %}
+                    <tr>
+                      <td><span class="rates-operation">{{ rate.get_operation_display }}</span><span class="rates-route">{{ rate.route.origin_port }}</span><span class="rates-muted">{{ rate.route.country }}</span></td>
+                      <td>{% if rate.destination_port %}{{ rate.destination_port }}{% else %}Según cotización{% endif %}</td>
+                      <td class="rates-price">{{ rate.currency }} {{ row.freight_20 }}{% if row.freight_20_max %} – {{ rate.currency }} {{ row.freight_20_max }}{% endif %}</td>
+                      <td class="rates-price">{{ rate.currency }} {{ row.freight_40 }}{% if row.freight_40_max %} – {{ rate.currency }} {{ row.freight_40_max }}{% endif %}</td>
+                      <td>{{ rate.transit_days }}{% if rate.transit_days_max is not None %}–{{ rate.transit_days_max }}{% endif %} días</td>
+                      <td>{% if rate.route_type %}{{ rate.route_type }}{% else %}—{% endif %}{% if rate.carrier %}<span class="rates-muted">{{ rate.carrier }}</span>{% endif %}</td>
+                      <td>{{ row.source_label }}<span class="rates-muted">Actualizada: {{ rate.updated_at|date:"d/m/Y H:i" }}</span></td>
+                      {% if can_edit_rates or can_delete_rates %}
+                        <td class="rates-row-actions">
+                          {% if can_edit_rates %}<a class="rates-edit-link" href="{% url 'rate_edit' rate.pk %}">Editar</a>{% endif %}
+                          {% if can_delete_rates %}<a class="rates-delete-link" href="{% url 'rate_delete' rate.pk %}">Eliminar</a>{% endif %}
+                        </td>
+                      {% endif %}
+                    </tr>
+                    {% endwith %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% if page_obj.has_other_pages %}
+              <nav class="rates-pagination" aria-label="Paginación de tarifas">
+                {% if page_obj.has_previous %}<a href="?q={{ search|urlencode }}&amp;page={{ page_obj.previous_page_number }}">Anterior</a>{% endif %}
+                <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}<a href="?q={{ search|urlencode }}&amp;page={{ page_obj.next_page_number }}">Siguiente</a>{% endif %}
+              </nav>
+            {% endif %}
+          {% else %}
+            <p class="rates-empty">{% if search %}No se encontraron tarifas que coincidan con la búsqueda.{% else %}Aún no hay tarifas cargadas en los antecedentes.{% endif %}</p>
+          {% endif %}
+        </section>
+        <p class="rates-notes">Los precios corresponden a las tarifas almacenadas en la base de datos. Confirma disponibilidad, vigencia, moneda y condiciones con la fuente antes de reservar.</p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

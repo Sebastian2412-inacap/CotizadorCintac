@@ -1,0 +1,29 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eliminar tarifa | CINTAC</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'cotizador/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <a class="login-brand" href="{% url 'rates' %}" aria-label="Volver a tarifas">CINTAC<span>.</span></a>
+    <h1>Eliminar tarifa</h1>
+    <p class="login-description">¿Confirmas que quieres eliminar este registro? Esta acción no se puede deshacer.</p>
+    <div class="rate-delete-summary">
+      <strong>{{ rate.get_operation_display }}</strong>
+      <p>{{ rate.route.origin_port }}, {{ rate.route.country }}{% if rate.destination_port %} → {{ rate.destination_port }}{% endif %}</p>
+      <p>20': {{ rate.currency }} {{ rate.freight_20 }} · 40': {{ rate.currency }} {{ rate.freight_40 }}</p>
+      {% if rate.source %}<small>Fuente: {{ rate.source }}</small>{% endif %}
+    </div>
+    <form method="post" class="rate-entry-actions">
+      {% csrf_token %}
+      <button class="rate-delete-confirm" type="submit">Sí, eliminar tarifa</button>
+      <a href="{% url 'rates' %}">Cancelar</a>
+    </form>
+  </main>
+</body>
+</html>
