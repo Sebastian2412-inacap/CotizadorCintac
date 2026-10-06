@@ -1,0 +1,42 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate "Home" %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:cotizador_freightrate_changelist' %}">Tarifas</a>
+  &rsaquo; Vincular Excel
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p>Sube el libro de tarifas .xlsx para vincular sus rutas con la base de datos y el cotizador.</p>
+  <ul>
+    <li>Se procesan las tarifas marítimas de la hoja <strong>Importaciones</strong>.</li>
+    <li>Los montos se guardan en <strong>USD</strong>, como confirmaste.</li>
+    <li>Las rutas del archivo se agregan o actualizan; otras tarifas y rutas se conservan.</li>
+    <li>El Excel debe estar recalculado y guardado para validar sus totales.</li>
+    <li>La hoja <strong>Exportaciones</strong> debe estar vacía; no se importan ni se borran tarifas de exportación.</li>
+    <li>Cada tarifa queda asociada a su ruta, nombre de archivo y número de fila de origen.</li>
+  </ul>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <fieldset class="module aligned">
+      <div class="form-row">
+        {{ form.workbook.errors }}
+        {{ form.workbook.label_tag }}
+        {{ form.workbook }}
+        {% if form.workbook.help_text %}<div class="help">{{ form.workbook.help_text }}</div>{% endif %}
+      </div>
+    </fieldset>
+    <div class="submit-row">
+      <input type="submit" value="Validar y actualizar tarifas" class="default">
+      <a href="{% url 'admin:cotizador_freightrate_changelist' %}">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
