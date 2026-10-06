@@ -1,0 +1,81 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iniciar sesión | CINTAC</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'cotizador/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}">
+</head>
+<body class="login-page login-screen">
+  <div class="login-layout">
+    <section class="login-visual" aria-label="CINTAC, soluciones de comercio exterior">
+      <a class="login-brand login-brand--light" href="{% url 'login' %}" aria-label="CINTAC">CINTAC<span>.</span></a>
+      <div class="login-visual-copy">
+        <span class="login-kicker"><i aria-hidden="true"></i> PLATAFORMA DE COMERCIO EXTERIOR</span>
+        <h2>Conecta tu operación con claridad.</h2>
+        <p>Consulta tarifas, estima tus costos y planifica tus embarques desde un solo lugar.</p>
+      </div>
+      <div class="login-visual-footer">
+        <span aria-hidden="true">C</span>
+        <p>Logística internacional<br><strong>decisiones informadas</strong></p>
+      </div>
+    </section>
+
+    <main class="login-card login-card--auth">
+      <div class="login-mobile-brand"><a class="login-brand" href="{% url 'login' %}" aria-label="CINTAC">CINTAC<span>.</span></a></div>
+      <span class="login-kicker login-kicker--dark">BIENVENIDO</span>
+      <h1>Iniciar sesión</h1>
+      <p class="login-description">Ingresa con tu cuenta autorizada para acceder al cotizador.</p>
+
+      {% if form.non_field_errors %}
+        <div class="alert login-error" role="alert">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <form class="login-form" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+        <div>
+          <label for="{{ form.username.id_for_label }}">Usuario</label>
+          {{ form.username }}
+          {% for error in form.username.errors %}<p class="login-field-error">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label for="{{ form.password.id_for_label }}">Contraseña</label>
+          {{ form.password }}
+          {% for error in form.password.errors %}<p class="login-field-error">{{ error }}</p>{% endfor %}
+        </div>
+        <button class="login-button" type="submit">Ingresar al cotizador <span aria-hidden="true">→</span></button>
+      </form>
+      {% if login_wait_seconds %}
+        <p class="login-countdown" id="login-countdown" role="status" aria-live="polite">
+          Puedes intentar nuevamente en <strong>{{ login_wait_seconds }}</strong> segundos.
+        </p>
+      {% endif %}
+      <p class="login-security"><span aria-hidden="true">●</span> Acceso privado para usuarios registrados</p>
+    </main>
+  </div>
+  <script>
+    (() => {
+      const countdown = document.getElementById('login-countdown');
+      const submit = document.querySelector('.login-form button[type="submit"]');
+      if (!countdown || !submit) return;
+
+      const secondsLabel = countdown.querySelector('strong');
+      let remaining = Number(secondsLabel.textContent);
+      submit.disabled = true;
+      const timer = window.setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          window.clearInterval(timer);
+          countdown.hidden = true;
+          submit.disabled = false;
+          return;
+        }
+        secondsLabel.textContent = remaining;
+      }, 1000);
+    })();
+  </script>
+</body>
+</html>
