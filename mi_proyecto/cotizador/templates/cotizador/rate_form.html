@@ -12,7 +12,7 @@
   <main class="login-card rate-entry-card">
     <a class="login-brand" href="{% url 'rates' %}" aria-label="Volver a tarifas">CINTAC<span>.</span></a>
     <h1>{% if editing %}Editar tarifa{% else %}Cargar tarifa{% endif %}</h1>
-    <p class="login-description">Todos los campos se seleccionan desde catálogos definidos. Los fletes se ofrecen en pasos de USD 50 o CLP 10.000; el tránsito, de 1 a 120 días.</p>
+    <p class="login-description">Selecciona los datos de ruta, embarcador y tarifa desde los antecedentes existentes. Los fletes se ofrecen en pasos de USD 50 o CLP 10.000; el tránsito, de 1 a 120 días.</p>
     {% if form.non_field_errors %}<div class="alert" role="alert">{{ form.non_field_errors }}</div>{% endif %}
     <form method="post" class="rate-entry-form">
       {% csrf_token %}

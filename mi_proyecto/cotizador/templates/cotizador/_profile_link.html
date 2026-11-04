@@ -1,0 +1,16 @@
+<a class="account-profile-link{% if active_page == 'profile' %} active{% endif %}" href="{% url 'user_profile' %}"{% if active_page == 'profile' %} aria-current="page"{% endif %} title="Revisar mi perfil">
+  {% if request.user.profile.avatar %}
+    <img class="account-profile-avatar" src="{{ request.user.profile.avatar.url }}" alt="">
+  {% else %}
+    <span class="account-profile-avatar account-profile-initial" aria-hidden="true">{{ request.user.first_name|default:request.user.username|slice:":1"|upper }}</span>
+  {% endif %}
+  <span class="account-profile-copy">
+    <strong>{% firstof request.user.get_full_name request.user.username %}</strong>
+    <small>{{ request.user.email|default:"Completa tu perfil" }}</small>
+  </span>
+</a>
+{% if request.user.username == "SuperAdminCintac" %}
+  <a class="user-management-shortcut{% if active_page == 'users' %} active{% endif %}" href="{% url 'manage_users' %}"{% if active_page == 'users' %} aria-current="page"{% endif %}>
+    Administrar usuarios
+  </a>
+{% endif %}

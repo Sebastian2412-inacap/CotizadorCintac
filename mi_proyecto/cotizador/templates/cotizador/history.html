@@ -1,0 +1,146 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Historial de cotizaciones | CINTAC</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'cotizador/favicon.svg' %}">
+  <script src="{% static 'cotizador/theme.js' %}?v=1"></script>
+  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}?v=14">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <a class="wordmark" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+      <div class="rail-label">COMEX</div>
+      <nav id="primary-navigation" aria-label="Navegación principal">
+        <a class="nav-link" href="{% url 'quote' %}" title="Cotizador"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Cotizador</span></a>
+        <a class="nav-link active" href="{% url 'quote_history' %}" aria-current="page" title="Historial"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Historial</span></a>
+        <a class="nav-link" href="{% url 'rates' %}" title="Tarifas"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Tarifas</span></a>
+      </nav>
+      {% include "cotizador/_profile_link.html" %}
+      <div class="rail-foot"><span class="status-dot"></span>Datos del informe<br><small>Actualización manual protegida</small></div>
+    </aside>
+    <button class="rail-toggle" type="button" aria-controls="primary-navigation" aria-expanded="true" aria-label="Ocultar menú" title="Ocultar menú">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5" /></svg>
+    </button>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="topbar-start">
+          <a class="topbar-brand" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+          <div class="breadcrumb">Operaciones <span>/</span> Historial</div>
+        </div>
+        <div class="account-controls">
+          <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro" title="Activar modo oscuro">
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" /></svg>
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z" /></svg>
+          </button>
+          <span class="account-name">{{ request.user.username }}</span>
+          <a class="admin-link" href="/admin/">Administración <span aria-hidden="true">↗</span></a>
+          <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="logout-button" type="submit">Cerrar sesión</button>
+          </form>
+        </div>
+      </header>
+
+      <div class="page-wrap history-wrap">
+        <section class="intro">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-line"></span>REGISTRO DE OPERACIONES</div>
+            <h1>Historial de <em>cotizaciones</em></h1>
+            <p>Consulta las cotizaciones realizadas y los valores guardados al momento del cálculo.</p>
+          </div>
+          <div class="history-actions">
+            {% if can_manage_history %}
+              <a class="rates-add-button" href="{% url 'admin:cotizador_quotehistory_changelist' %}">Administrar historial</a>
+            {% endif %}
+            <div class="history-summary"><strong>{{ total_quotes }}</strong><span>cotización{% if total_quotes != 1 %}es{% endif %} guardada{% if total_quotes != 1 %}s{% endif %}</span></div>
+            {% if can_clear_history and total_quotes %}
+              <button class="history-clear-trigger" type="button" aria-haspopup="dialog" aria-controls="clear-history-dialog">
+                Eliminar todo el historial
+              </button>
+              <dialog class="history-clear-dialog" id="clear-history-dialog" aria-labelledby="clear-history-title">
+                <div class="history-clear-heading">
+                  <h2 id="clear-history-title">Eliminar todo el historial</h2>
+                  <button class="history-clear-close" type="button" aria-label="Cerrar ventana">&times;</button>
+                </div>
+                <form method="post" action="{% url 'clear_quote_history' %}">
+                  {% csrf_token %}
+                  <p>Esta acción eliminará las cotizaciones guardadas de todos los usuarios y no se puede deshacer.</p>
+                  <label for="history-password">Confirma tu contraseña</label>
+                  <input id="history-password" name="password" type="password" autocomplete="current-password" required autofocus>
+                  <label class="history-clear-confirm">
+                    <input type="checkbox" name="confirm_delete" value="yes" required>
+                    Confirmo que deseo eliminar todo el historial.
+                  </label>
+                  <div class="history-clear-actions">
+                    <button class="history-clear-cancel" type="button">Cancelar</button>
+                    <button class="history-clear-submit" type="submit">Eliminar historial</button>
+                  </div>
+                </form>
+              </dialog>
+            {% endif %}
+          </div>
+        </section>
+
+        {% if messages %}{% for message in messages %}<div class="alert" role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}">{{ message }}</div>{% endfor %}{% endif %}
+
+        <section class="panel history-panel" aria-label="Cotizaciones guardadas">
+          {% if quote_rows %}
+            <div class="history-table-scroll">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Usuario</th>
+                    <th>Operación / ruta</th>
+                    <th>Carga</th>
+                    <th>Flete cotizado</th>
+                    <th>Tránsito</th>
+                    <th>Detalle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in quote_rows %}
+                    {% with quote=row.quote %}
+                    <tr>
+                      <td class="history-date">{{ quote.created_at|date:"d/m/Y" }}<span>{{ quote.created_at|date:"H:i" }}</span></td>
+                      <td>{% firstof quote.user.get_full_name quote.user.username %}</td>
+                      <td><span class="rates-operation">Importación</span><strong class="history-route">{{ quote.origin_port }} <span>→</span> {{ quote.destination }}</strong><span class="rates-muted">{{ quote.origin_country }}{% if quote.carrier %} · {{ quote.carrier }}{% endif %}</span></td>
+                      <td>{{ quote.container_quantity }} contenedor{% if quote.container_quantity != 1 %}es{% endif %} de {{ quote.container_size }} pies<span class="rates-muted">{{ row.tonnes }} TN</span></td>
+                      <td class="rates-price">{{ quote.currency }} {{ row.amount }}{% if row.amount_max %}<span> – {{ quote.currency }} {{ row.amount_max }}</span>{% endif %}<span class="rates-muted">Base seleccionada: {{ quote.source_currency }} {{ row.source_amount }}{% if row.source_amount_max %} – {{ row.source_amount_max }}{% endif %}</span>{% if quote.rate_currency %}<span class="rates-muted">Tarifa registrada: {{ quote.rate_currency }} {{ row.rate_amount }}{% if row.rate_amount_max %} – {{ row.rate_amount_max }}{% endif %}</span>{% endif %}<span class="rates-muted">TC {{ quote.exchange_rate }} CLP por USD</span></td>
+                      <td>{{ quote.total_days }}{% if quote.total_days_max is not None %}–{{ quote.total_days_max }}{% endif %} días<span class="rates-muted">Margen: {{ quote.margin_days }} días</span></td>
+                      <td><a class="history-detail-link" href="{{ row.detail_url }}">Ver detalle <span aria-hidden="true">→</span></a></td>
+                    </tr>
+                    {% endwith %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% if page_obj.has_other_pages %}
+              <nav class="rates-pagination" aria-label="Paginación del historial">
+                {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">Anterior</a>{% endif %}
+                <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Siguiente</a>{% endif %}
+              </nav>
+            {% endif %}
+          {% else %}
+            <div class="history-empty">
+              <span aria-hidden="true">↗</span>
+              <h2>Aún no hay cotizaciones</h2>
+              <p>Cuando calcules un flete, lo encontrarás aquí junto con su ruta, monto y tipo de cambio.</p>
+              <a class="rates-add-button" href="{% url 'quote' %}">Crear primera cotización</a>
+            </div>
+          {% endif %}
+        </section>
+        <footer class="page-foot"><span>{% if can_manage_history %}El historial muestra las cotizaciones de todos los usuarios.{% else %}El historial muestra las cotizaciones de tu usuario.{% endif %}</span><a href="{% url 'quote' %}">Volver al cotizador</a></footer>
+      </div>
+    </main>
+  </div>
+  <script src="{% static 'cotizador/navigation.js' %}?v=3" defer></script>
+  <script src="{% static 'cotizador/clear_history.js' %}?v=1" defer></script>
+</body>
+</html>

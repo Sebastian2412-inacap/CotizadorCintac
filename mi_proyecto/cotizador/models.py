@@ -1,4 +1,5 @@
 # Componentes del ORM de Django para definir tablas y restricciones.
+from django.conf import settings
 from django.db import models
 
 
@@ -29,7 +30,6 @@ class Route(models.Model):
 class FreightRate(models.Model):
     OPERATION_CHOICES = [
         ("import", "Importación"),
-        ("export", "Exportación"),
     ]
 
     # Monedas permitidas para almacenar y presentar los montos.
@@ -76,6 +76,10 @@ class FreightRate(models.Model):
                 fields=["route", "operation", "destination_port", "carrier"],
                 name="unique_route_destination_carrier",
             ),
+            models.CheckConstraint(
+                condition=models.Q(operation="import"),
+                name="freightrate_import_only",
+            ),
             models.CheckConstraint(condition=models.Q(freight_20__gte=0), name="freight_20_non_negative"),
             models.CheckConstraint(condition=models.Q(freight_40__gte=0), name="freight_40_non_negative"),
             models.CheckConstraint(
@@ -102,3 +106,72 @@ class FreightRate(models.Model):
         destination = f" → {self.destination_port}" if self.destination_port else ""
         carrier = f" · {self.carrier}" if self.carrier else ""
         return f"{self.route}{destination}{carrier}"
+
+
+class QuoteHistory(models.Model):
+    OPERATION_CHOICES = FreightRate.OPERATION_CHOICES
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="quote_history",
+    )
+    rate = models.ForeignKey(
+        FreightRate,
+        on_delete=models.SET_NULL,
+        related_name="saved_quotes",
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    operation = models.CharField(max_length=6, choices=OPERATION_CHOICES)
+    origin_port = models.CharField(max_length=120)
+    origin_country = models.CharField(max_length=80)
+    destination = models.CharField(max_length=120)
+    carrier = models.CharField(max_length=120, blank=True)
+    container_size = models.CharField(max_length=2)
+    weight = models.DecimalField(max_digits=20, decimal_places=6)
+    weight_unit = models.CharField(max_length=3)
+    tonnes = models.DecimalField(max_digits=20, decimal_places=6)
+    container_quantity = models.PositiveIntegerField()
+    margin_days = models.PositiveIntegerField(default=0)
+    source_currency = models.CharField(max_length=3)
+    currency = models.CharField(max_length=3)
+    exchange_rate = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    source_amount = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    source_amount_max = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    rate_currency = models.CharField(max_length=3, blank=True)
+    rate_amount = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    rate_amount_max = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    amount = models.DecimalField(max_digits=20, decimal_places=2)
+    amount_max = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    base_days = models.PositiveIntegerField()
+    base_days_max = models.PositiveIntegerField(null=True, blank=True)
+    total_days = models.PositiveIntegerField()
+    total_days_max = models.PositiveIntegerField(null=True, blank=True)
+    details = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(operation="import"),
+                name="quotehistory_import_only",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.origin_port} → {self.destination} · {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    rut = models.CharField(max_length=12, blank=True)
+    avatar = models.ImageField(upload_to="profile_photos/", blank=True)
+
+    def __str__(self):
+        return f"Perfil de {self.user.get_username()}"

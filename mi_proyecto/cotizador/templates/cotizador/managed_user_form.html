@@ -1,0 +1,81 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if editing %}Editar usuario{% else %}Crear usuario{% endif %} | CINTAC</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'cotizador/favicon.svg' %}">
+  <script src="{% static 'cotizador/theme.js' %}?v=1"></script>
+  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}?v=16">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <a class="wordmark" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+      <div class="rail-label">COMEX</div>
+      <nav id="primary-navigation" aria-label="Navegación principal">
+        <a class="nav-link" href="{% url 'quote' %}" title="Cotizador"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Cotizador</span></a>
+        <a class="nav-link" href="{% url 'quote_history' %}" title="Historial"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Historial</span></a>
+        <a class="nav-link" href="{% url 'rates' %}" title="Tarifas"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Tarifas</span></a>
+      </nav>
+      {% include "cotizador/_profile_link.html" with active_page="users" %}
+      <div class="rail-foot"><span class="status-dot"></span>Administración de cuentas<br><small>Acceso restringido</small></div>
+    </aside>
+    <button class="rail-toggle" type="button" aria-controls="primary-navigation" aria-expanded="true" aria-label="Ocultar menú" title="Ocultar menú">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5" /></svg>
+    </button>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="topbar-start">
+          <a class="topbar-brand" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+          <div class="breadcrumb">Administración <span>/</span> <a href="{% url 'manage_users' %}">Usuarios</a></div>
+        </div>
+        <div class="account-controls">
+          <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro" title="Activar modo oscuro">
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42 1.42" /></svg>
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z" /></svg>
+          </button>
+          <span class="account-name">{{ request.user.username }}</span>
+          <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="logout-button" type="submit">Cerrar sesión</button>
+          </form>
+        </div>
+      </header>
+
+      <div class="page-wrap managed-user-form-wrap">
+        <section class="intro">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-line"></span>ACCESO EXCLUSIVO</div>
+            <h1>{% if editing %}Editar <em>usuario</em>{% else %}Crear <em>usuario</em>{% endif %}</h1>
+            <p>{% if editing %}Actualiza los datos de {{ managed_user.username }}.{% else %}Completa los datos de acceso y perfil de la nueva cuenta.{% endif %}</p>
+          </div>
+        </section>
+
+        <section class="panel managed-user-form-panel">
+          {% if form.non_field_errors %}<div class="alert" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+          <form method="post" class="managed-user-form">
+            {% csrf_token %}
+            {% for field in form %}
+              <div class="field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                {% for error in field.errors %}<small class="managed-user-field-error" role="alert">{{ error }}</small>{% endfor %}
+              </div>
+            {% endfor %}
+            {% if editing %}<p class="managed-user-password-note">Deja los campos de contraseña vacíos para mantener la contraseña actual.</p>{% endif %}
+            <div class="managed-user-form-actions">
+              <a class="history-clear-cancel" href="{% url 'manage_users' %}">Cancelar</a>
+              <button class="rates-add-button" type="submit">{% if editing %}Guardar cambios{% else %}Crear usuario{% endif %}</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="{% static 'cotizador/navigation.js' %}?v=3" defer></script>
+</body>
+</html>

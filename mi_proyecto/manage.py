@@ -13,11 +13,10 @@ def main():
         # Importa la función de Django que interpreta y ejecuta los comandos.
         from django.core.management import execute_from_command_line
     except ImportError as exc:
-        # Explica el problema si Django no está instalado o no se encuentra.
+        # Explica el problema si Django no está instalado en este Python.
         raise ImportError(
             "Couldn't import Django. Are you sure it's installed and "
-            "available on your PYTHONPATH environment variable? Did you "
-            "forget to activate a virtual environment?"
+            "available to the Python interpreter running this command?"
         ) from exc
     # Entrega a Django los argumentos escritos al ejecutar manage.py.
     execute_from_command_line(sys.argv)

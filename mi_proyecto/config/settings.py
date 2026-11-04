@@ -110,6 +110,10 @@ USE_TZ = True
 # Prefijo URL para servir los recursos estáticos, como el CSS del cotizador.
 STATIC_URL = 'static/'
 
+# Almacenamiento local de fotos de perfil.
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Rutas de autenticación y destino al iniciar/cerrar sesión.
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'quote'

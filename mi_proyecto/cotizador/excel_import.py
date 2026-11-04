@@ -50,7 +50,6 @@ class ExcelTariff:
 class ImportResult:
     created: int
     updated: int
-    export_rows: int
 
 
 def _normalized(value):
@@ -112,20 +111,6 @@ def _country_rates(sheet):
     return rates
 
 
-def _read_export_rows(sheet):
-    populated_rows = []
-    for row_number, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
-        if any(value not in (None, "") for value in row):
-            populated_rows.append(row_number)
-    if populated_rows:
-        rows = ", ".join(map(str, populated_rows[:10]))
-        raise TariffImportError(
-            "La hoja Exportaciones contiene datos (filas "
-            f"{rows}); esta carga solo procesa importaciones marítimas. No se modificó la base de datos."
-        )
-    return 0
-
-
 def read_tariff_workbook(uploaded_file):
     filename = PurePosixPath(uploaded_file.name.replace("\\", "/")).name
     try:
@@ -136,9 +121,6 @@ def read_tariff_workbook(uploaded_file):
     try:
         if "Importaciones" not in workbook.sheetnames:
             raise TariffImportError("El libro debe incluir una hoja llamada Importaciones.")
-        if "Exportaciones" not in workbook.sheetnames:
-            raise TariffImportError("El libro debe incluir una hoja llamada Exportaciones.")
-
         import_sheet = workbook["Importaciones"]
         headers = tuple(_normalized(import_sheet.cell(1, column).value) for column in range(1, 9))
         if headers != EXPECTED_HEADERS:
@@ -223,15 +205,14 @@ def read_tariff_workbook(uploaded_file):
 
         if not tariffs:
             raise TariffImportError("No se encontraron tarifas en la hoja Importaciones.")
-        export_rows = _read_export_rows(workbook["Exportaciones"])
-        return filename, tariffs, export_rows
+        return filename, tariffs
     finally:
         workbook.close()
 
 
 @transaction.atomic
 def import_tariff_workbook(uploaded_file):
-    filename, tariffs, export_rows = read_tariff_workbook(uploaded_file)
+    filename, tariffs = read_tariff_workbook(uploaded_file)
     created = 0
     updated = 0
     for tariff in tariffs:
@@ -259,4 +240,4 @@ def import_tariff_workbook(uploaded_file):
         created += was_created
         updated += not was_created
 
-    return ImportResult(created=created, updated=updated, export_rows=export_rows)
+    return ImportResult(created=created, updated=updated)

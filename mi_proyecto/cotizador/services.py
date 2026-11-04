@@ -1,42 +1,92 @@
 # Utilidades numéricas precisas para convertir unidades y calcular montos.
-from decimal import Decimal, InvalidOperation, ROUND_CEILING
+import json
+from datetime import date
+from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_HALF_UP
+from urllib.error import HTTPError, URLError
+from urllib.request import urlopen
 
 
-# Capacidad de carga asumida para calcular la cantidad de contenedores.
-CONTAINER_CAPACITY_TONNES = Decimal("25")
+# Endpoints y mensajes para obtener el tipo de cambio de referencia actualizado.
+FRANKFURTER_USD_CLP_URL = "https://api.frankfurter.dev/v2/rate/usd/clp"
+EXCHANGE_RATE_ERROR = (
+    "No se pudo obtener el tipo de cambio actualizado. "
+    "Intenta nuevamente más tarde."
+)
+EXCHANGE_RATE_TIMEOUT_SECONDS = 5
+
+# Capacidad máxima de carga por tamaño de contenedor.
+CONTAINER_CAPACITY_TONNES = {
+    "20": Decimal("23"),
+    "40": Decimal("25"),
+}
+MAX_WEIGHT_BY_UNIT = {
+    "kg": Decimal("220000000"),
+    "ton": Decimal("220000"),
+}
+MAX_WEIGHT_ERROR = (
+    "El peso máximo para cotizar es 220.000 toneladas "
+    "(220.000.000 kg). Reduce el peso y vuelve a calcular."
+)
 # Destinos admitidos por el formulario de cotización.
 DESTINATIONS = (
-    "Arica",
-    "Iquique",
-    "Antofagasta",
     "Valparaíso",
     "San Antonio",
-    "Talcahuano",
-    "Puerto Montt",
-    "Punta Arenas",
 )
 
 
-def container_count(weight, unit):
+def fetch_latest_usd_clp_rate():
+    """Obtiene el último tipo USD/CLP publicado por Frankfurter."""
+    try:
+        with urlopen(
+            FRANKFURTER_USD_CLP_URL,
+            timeout=EXCHANGE_RATE_TIMEOUT_SECONDS,
+        ) as response:
+            data = json.load(response)
+    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as error:
+        raise ValueError(EXCHANGE_RATE_ERROR) from error
+
+    try:
+        if data.get("base") != "USD" or data.get("quote") != "CLP":
+            raise ValueError("Par de monedas inesperado.")
+        observed_date = date.fromisoformat(data["date"])
+        rate = Decimal(str(data["rate"]))
+        if not rate.is_finite() or rate <= 0:
+            raise ValueError("El tipo de cambio debe ser positivo.")
+        rate = rate.quantize(Decimal("0.0001"))
+    except (AttributeError, KeyError, TypeError, ValueError, InvalidOperation) as error:
+        raise ValueError(EXCHANGE_RATE_ERROR) from error
+
+    return rate, observed_date
+
+
+def container_count(weight, unit, container_size="40"):
     # Convierte el dato a Decimal para evitar errores de precisión de float.
     try:
         amount = Decimal(str(weight))
     except (InvalidOperation, TypeError, ValueError) as error:
         raise ValueError("Ingresa un peso válido.") from error
 
+    if not amount.is_finite():
+        raise ValueError("Ingresa un peso válido.")
     # Rechaza pesos cero o negativos antes de calcular la carga.
     if amount <= 0:
         raise ValueError("El peso debe ser mayor que cero.")
+    if unit not in MAX_WEIGHT_BY_UNIT:
+        raise ValueError("Selecciona kg o toneladas.")
+    if amount > MAX_WEIGHT_BY_UNIT[unit]:
+        raise ValueError(MAX_WEIGHT_ERROR)
     # Normaliza el peso a toneladas según la unidad seleccionada.
     if unit == "kg":
         tonnes = amount / Decimal("1000")
-    elif unit == "ton":
-        tonnes = amount
     else:
-        raise ValueError("Selecciona kg o toneladas.")
+        tonnes = amount
+
+    if container_size not in CONTAINER_CAPACITY_TONNES:
+        raise ValueError("Selecciona un contenedor de 20 o 40 pies.")
 
     # Redondea hacia arriba para no exceder la capacidad de cada contenedor.
-    quantity = int((tonnes / CONTAINER_CAPACITY_TONNES).to_integral_value(rounding=ROUND_CEILING))
+    capacity = CONTAINER_CAPACITY_TONNES[container_size]
+    quantity = int((tonnes / capacity).to_integral_value(rounding=ROUND_CEILING))
     return tonnes, quantity
 
 
@@ -63,7 +113,11 @@ def convert_currency(amount, source, target, clp_per_usd):
     return amount / exchange_rate
 
 
-def format_amount(amount):
-    # Aplica dos decimales y adapta separadores al formato usado en Chile.
-    formatted = f"{Decimal(amount):,.2f}"
+def format_amount(amount, currency=None):
+    # CLP se expresa en pesos enteros; las demás cantidades conservan dos decimales.
+    if currency == "CLP":
+        amount = Decimal(amount).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        formatted = f"{amount:,.0f}"
+    else:
+        formatted = f"{Decimal(amount):,.2f}"
     return formatted.translate(str.maketrans({",": ".", ".": ","}))

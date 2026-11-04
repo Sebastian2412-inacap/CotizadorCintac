@@ -7,7 +7,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CINTAC | Cotizador logístico</title>
   <link rel="icon" type="image/svg+xml" href="{% static 'cotizador/favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}">
+  <script src="{% static 'cotizador/theme.js' %}?v=1"></script>
+  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}?v=14">
 </head>
 <body>
   <!-- Estructura general: navegación lateral y área principal del cotizador. -->
@@ -16,18 +17,30 @@
     <aside class="rail">
       <a class="wordmark" href="/" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
       <div class="rail-label">COMEX</div>
-      <nav aria-label="Navegación principal">
-        <a class="nav-link active" href="{% url 'quote' %}" aria-current="page"><span class="nav-mark"></span>Cotizador</a>
-        <a class="nav-link" href="{% url 'rates' %}"><span class="nav-mark"></span>Tarifas</a>
+      <nav id="primary-navigation" aria-label="Navegación principal">
+        <a class="nav-link active" href="{% url 'quote' %}" aria-current="page" title="Cotizador"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Cotizador</span></a>
+        <a class="nav-link" href="{% url 'quote_history' %}" title="Historial"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Historial</span></a>
+        <a class="nav-link" href="{% url 'rates' %}" title="Tarifas"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Tarifas</span></a>
       </nav>
+      {% include "cotizador/_profile_link.html" %}
       <div class="rail-foot"><span class="status-dot"></span>Datos del informe<br><small>Actualización manual protegida</small></div>
     </aside>
+    <button class="rail-toggle" type="button" aria-controls="primary-navigation" aria-expanded="true" aria-label="Ocultar menú" title="Ocultar menú">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5" /></svg>
+    </button>
 
     <!-- Área que contiene el encabezado, formulario y resultados de la página. -->
     <main class="main-area">
       <header class="topbar">
-        <div class="breadcrumb">Operaciones <span>/</span> Cotizador</div>
+        <div class="topbar-start">
+          <a class="topbar-brand" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+          <div class="breadcrumb">Operaciones <span>/</span> Cotizador</div>
+        </div>
         <div class="account-controls">
+          <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro" title="Activar modo oscuro">
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" /></svg>
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z" /></svg>
+          </button>
           <span class="account-name">{{ request.user.username }}</span>
           <a class="admin-link" href="/admin/">Administración <span aria-hidden="true">↗</span></a>
           <form method="post" action="{% url 'logout' %}">
@@ -45,7 +58,7 @@
             <h1>Cotizador <em>marítimo</em></h1>
             <p>Calcula flete y tránsito con las tarifas disponibles para cada origen.</p>
           </div>
-          <div class="intro-stamp"><span>CAPACIDAD DE REFERENCIA</span><strong>25 <small>TN</small></strong><span>POR CONTENEDOR</span></div>
+          <div class="intro-stamp"><span>CAPACIDAD MÁXIMA</span><strong>23 / 25 <small>TN</small></strong><span>20 / 40 PIES</span></div>
         </section>
 
         <!-- Mensaje de validación que la vista muestra cuando hay datos incorrectos. -->
@@ -63,38 +76,27 @@
             </div>
 
             <div class="field-grid">
-              <!-- Define si se importa/exporta y si el transporte es marítimo/aéreo. -->
+              <!-- El cotizador está configurado para importación marítima. -->
               <div class="field">
-                <label for="operation">Operación</label>
-                <select id="operation" name="operation">
-                  <option value="import" {% if form.operation == 'import' %}selected{% endif %}>Importación</option>
-                  <option value="export" {% if form.operation == 'export' %}selected{% endif %}>Exportación</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="transport">Transporte</label>
-                <select id="transport" name="transport">
-                  <option value="sea" {% if form.transport == 'sea' %}selected{% endif %}>Marítimo</option>
-                  <option value="air" {% if form.transport == 'air' %}selected{% endif %}>Aéreo</option>
-                </select>
+                <label>Operación</label>
+                <strong>Importación marítima</strong>
               </div>
               <!-- Permite seleccionar una tarifa guardada y muestra sus valores. -->
               <div class="field field-wide">
                 <label for="rate_id">Ruta y tarifa</label>
                 <select id="rate_id" name="rate_id" required>
                   {% for rate in rates %}
-                    <option value="{{ rate.pk }}" data-operation="{{ rate.operation }}" data-destination="{{ rate.destination_port }}" {% if selected_rate_id == rate.pk %}selected{% endif %}>
-                      {{ rate.route.origin_port }}, {{ rate.route.country }}{% if rate.destination_port %} → {{ rate.destination_port }}{% endif %} · 20': {{ rate.freight_20 }}{% if rate.freight_20_max %}–{{ rate.freight_20_max }}{% endif %} / 40': {{ rate.freight_40 }}{% if rate.freight_40_max %}–{{ rate.freight_40_max }}{% endif %} · {{ rate.currency }}{% if rate.carrier %} · {{ rate.carrier }}{% endif %}
+                    <option value="{{ rate.pk }}" data-destination="{{ rate.destination_port }}" data-currency="{{ rate.currency }}" {% if selected_rate_id == rate.pk %}selected{% endif %}>
+                      {{ rate.route.origin_port }}, {{ rate.route.country }}{% if rate.destination_port %} → {{ rate.destination_port }}{% endif %} · 20': {{ rate.freight_20_formatted }}{% if rate.freight_20_max_formatted %}–{{ rate.freight_20_max_formatted }}{% endif %} / 40': {{ rate.freight_40_formatted }}{% if rate.freight_40_max_formatted %}–{{ rate.freight_40_max_formatted }}{% endif %} · {{ rate.currency }}{% if rate.carrier %} · {{ rate.carrier }}{% endif %}
                     </option>
                   {% endfor %}
-                  <option value="" data-empty-operation="import" hidden disabled>No hay tarifas de importación cargadas</option>
-                  <option value="" data-empty-operation="export" hidden disabled>No hay tarifas de exportación cargadas</option>
+                  {% if not rates %}<option value="" hidden disabled selected>No hay tarifas de importación cargadas</option>{% endif %}
                 </select>
                 <small>Solo se muestran tarifas registradas para la operación seleccionada.</small>
               </div>
               <!-- El destino puede quedar asociado automáticamente a una tarifa. -->
               <div class="field">
-                <label for="destination">{% if form.operation == 'export' %}Destino de exportación{% else %}Destino en Chile{% endif %}</label>
+                <label for="destination">Puerto de importación en Chile</label>
                 <select id="destination" name="destination" required>
                   {% for destination in destinations %}
                     <option value="{{ destination }}" {% if form.destination == destination %}selected{% endif %}>{{ destination }}</option>
@@ -102,25 +104,17 @@
                 </select>
                 <small>El destino asociado a una tarifa registrada se selecciona automáticamente.</small>
               </div>
-              <!-- Selección del tamaño de contenedor que se usará en el cálculo. -->
-              <div class="field">
-                <label for="container_size">Contenedor</label>
-                <select id="container_size" name="container_size">
-                  <option value="20" {% if form.container_size == '20' %}selected{% endif %}>20 pies</option>
-                  <option value="40" {% if form.container_size == '40' %}selected{% endif %}>40 pies</option>
-                </select>
-              </div>
               <!-- Peso y unidad que la vista convierte a toneladas. -->
               <div class="field">
                 <label for="weight">Peso de la carga</label>
                 <div class="input-pair">
-                  <input id="weight" name="weight" type="number" min="0.01" step="any" value="{{ form.weight }}" placeholder="Ej. 26000" required>
-                  <select aria-label="Unidad de peso" name="weight_unit">
+                  <input id="weight" name="weight" type="number" min="0.01" max="{% if form.weight_unit == 'ton' %}220000{% else %}220000000{% endif %}" step="any" value="{{ form.weight }}" placeholder="Ej. 26000" required>
+                  <select id="weight_unit" aria-label="Unidad de peso" name="weight_unit">
                     <option value="kg" {% if form.weight_unit == 'kg' %}selected{% endif %}>kg</option>
                     <option value="ton" {% if form.weight_unit == 'ton' %}selected{% endif %}>ton</option>
                   </select>
                 </div>
-                <small>Se calcula con un máximo de 25 TN por contenedor.</small>
+                <small id="weight-limit">Peso máximo para cotizar: 220.000 toneladas (220.000.000 kg). Se cotizan ambas opciones: máximo 23 TN por contenedor de 20 pies y 25 TN por 40 pies.</small>
               </div>
               <!-- Margen opcional que se suma al tiempo, pero no al precio. -->
               <div class="field">
@@ -133,24 +127,23 @@
               </div>
             </div>
 
-            <!-- Sección desplegable con moneda de presentación y tipo de cambio manual. -->
-            <details class="currency-details">
+            <!-- Sección desplegable con moneda de presentación y conversión automática. -->
+            <details class="currency-details" open>
               <summary>Conversión de moneda <span>CLP ↔ USD</span></summary>
               <div class="field-grid conversion-grid">
                 <div class="field">
-                  <label for="target_currency">Mostrar resultado en</label>
-                  <select id="target_currency" name="target_currency">
-                    <option value="" {% if not form.target_currency %}selected{% endif %}>Moneda de la tarifa</option>
-                    <option value="CLP" {% if form.target_currency == 'CLP' %}selected{% endif %}>CLP</option>
-                    <option value="USD" {% if form.target_currency == 'USD' %}selected{% endif %}>USD</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="exchange_rate">Tipo de cambio (CLP por USD)</label>
-                  <input id="exchange_rate" name="exchange_rate" type="number" min="0.01" step="any" value="{{ form.exchange_rate }}" placeholder="Informar valor">
+                  <label for="source_currency">Moneda desde la que convertir</label>
+                  <div class="currency-direction" aria-live="polite">
+                    <select id="source_currency" name="source_currency" aria-label="Moneda desde la que convertir">
+                      <option value="CLP" {% if form.source_currency == 'CLP' %}selected{% endif %}>Peso chileno (CLP)</option>
+                      <option value="USD" {% if form.source_currency == 'USD' %}selected{% endif %}>Dólar estadounidense (USD)</option>
+                    </select>
+                    <span aria-hidden="true">→</span><strong id="currency-target">—</strong>
+                  </div>
+                  <input id="target_currency" name="target_currency" type="hidden" value="{{ form.target_currency }}">
                 </div>
               </div>
-              <p class="field-note">La tarifa debe tener moneda confirmada. El tipo de cambio lo informa el usuario; no se consulta una fuente externa.</p>
+              <p class="field-note" id="currency-status" aria-live="polite">El tipo de cambio CLP/USD más reciente se consultará automáticamente al calcular la cotización.</p>
             </details>
 
             <!-- Nota de alcance del cálculo y botón para enviar el formulario. -->
@@ -167,17 +160,47 @@
               <span class="result-orbit" aria-hidden="true">C</span>
             </div>
             {% if result %}
-              <!-- Resumen de ruta, precio, contenedores y tiempos calculados. -->
+              <!-- Resumen y comparativa de presupuesto por tamaño de contenedor. -->
               <div class="route-line"><span>{{ result.rate.route.origin_port }}</span><i></i><span>{{ result.destination }}</span></div>
-              <div class="result-number"><span>FLETE BASE · {{ result.currency }}</span><strong>{{ result.amount }}{% if result.amount_max %} – {{ result.amount_max }}{% endif %}</strong></div>
+              <div class="result-number"><span>MENOR PRESUPUESTO ESTIMADO · TARIFA MÍNIMA · {{ result.currency }}</span><strong>{{ result.amount }}{% if result.amount_max %} – {{ result.amount_max }}{% endif %}</strong></div>
+              <p class="result-original">Opción de menor costo: <strong>{{ result.recommendation.quantity }} contenedor{% if result.recommendation.quantity != 1 %}es{% endif %} de {{ result.recommendation.size }} pies</strong></p>
+              <h3 class="container-comparison-title">Comparativa de contenedores</h3>
+              <div class="container-comparison">
+                {% for option in result.container_options %}
+                  <article class="container-option{% if option.recommended %} recommended-option{% endif %}">
+                    <header class="container-option-heading">
+                      <div>
+                        <h4>Contenedor de {{ option.size }} pies</h4>
+                        <span class="container-capacity">Capacidad máxima: {{ option.capacity }} TN por contenedor</span>
+                      </div>
+                      {% if option.recommended %}<span class="recommended-badge">Menor costo</span>{% endif %}
+                    </header>
+                    <div class="container-quantity">
+                      <span>Cantidad necesaria para {{ result.tonnes }} TN</span>
+                      <strong>{{ option.quantity }} contenedor{% if option.quantity != 1 %}es{% endif %}</strong>
+                    </div>
+                    <div class="container-option-prices">
+                      <div class="container-unit-price">
+                        <span>Tarifa por unidad</span>
+                        <strong>{{ option.rate_currency }} {{ option.unit_amount }}</strong>
+                        {% if option.unit_amount_max %}<small>Hasta {{ option.rate_currency }} {{ option.unit_amount_max }}</small>{% endif %}
+                      </div>
+                      <div class="container-total-price">
+                        <span>Total estimado</span>
+                        <strong>{{ option.currency }} {{ option.amount }}{% if option.amount_max %} – {{ option.amount_max }}{% endif %}</strong>
+                        <small>Base: {{ option.source_currency }} {{ option.source_amount_formatted }}{% if option.source_amount_max_formatted %} – {{ option.source_amount_max_formatted }}{% endif %}</small>
+                      </div>
+                    </div>
+                  </article>
+                {% endfor %}
+              </div>
               <div class="result-rows">
-                <div><span>Contenedores de {{ result.container_size }} pies</span><strong>{{ result.quantity }} contenedor{% if result.quantity != 1 %}es{% endif %}</strong></div>
                 <div><span>Peso convertido</span><strong>{{ result.tonnes }} TN</strong></div>
                 <div><span>Tránsito base</span><strong>{{ result.base_days }}{% if result.base_days_max %}–{{ result.base_days_max }}{% endif %} días</strong></div>
                 <div><span>Margen agregado</span><strong>+{{ result.margin_days }} días</strong></div>
                 <div class="total-row"><span>Tiempo estimado</span><strong>{{ result.total_days }}{% if result.total_days_max %}–{{ result.total_days_max }}{% endif %} días</strong></div>
               </div>
-              {% if result.converted %}<p class="result-foot">Conversión aplicada con el tipo de cambio indicado en el formulario.</p>{% endif %}
+              {% if result.converted %}<p class="result-foot">Tipo de cambio de referencia: 1 USD = {{ result.exchange_rate }} CLP, publicado el {{ result.exchange_rate_date|date:"d/m/Y" }}.</p>{% endif %}
               {% if result.route_type %}<p class="result-foot">Tipo de ruta: {{ result.route_type }}.</p>{% endif %}
               {% if result.source %}<p class="result-foot">Fuente: {{ result.source }}.</p>{% endif %}
               <p class="result-foot">Seguro excluido. Los rangos referenciales deben confirmarse antes de reservar.</p>
@@ -192,21 +215,29 @@
         </form>
 
         {% if result %}
-          <!-- Alternativas para la misma ruta o explicación de por qué no se comparan. -->
+          <!-- Comparación de otros embarcadores para la misma ruta y carga. -->
           <section class="comparison-panel">
-            <div class="comparison-heading"><div><span class="step-label">3 / PRECIO Y TRÁNSITO</span><h2>Comparación de alternativas</h2></div><span class="comparison-caption">Mismo origen · mismo tamaño de contenedor</span></div>
+            <div class="comparison-heading"><div><span class="step-label">3 / PRECIO Y TRÁNSITO</span><h2>Comparación de alternativas</h2></div><span class="comparison-caption">{{ result.rate.route.origin_port }} → {{ result.destination }} · {{ result.recommendation.quantity }} contenedor{% if result.recommendation.quantity != 1 %}es{% endif %} de {{ result.container_size }} pies</span></div>
             {% if result.comparisons %}
-              <div class="table-scroll"><table><thead><tr><th>Embarcador</th><th>Flete total</th><th>Tránsito estimado</th></tr></thead><tbody>
-                {% for item in result.comparisons %}<tr><td>{{ item.carrier }}</td><td>{{ item.currency }} {{ item.amount }}</td><td>{{ item.days }} días</td></tr>{% endfor %}
+              <div class="table-scroll"><table><thead><tr><th>Embarcador</th><th>Tarifa por contenedor</th><th>Total estimado</th><th>Tránsito estimado</th><th>Tipo de ruta</th><th>Fuente / referencia</th></tr></thead><tbody>
+                {% for item in result.comparisons %}
+                  <tr>
+                    <td>{{ item.carrier }}</td>
+                    <td>{{ item.rate_currency }} {{ item.unit_amount }}{% if item.unit_amount_max %} – {{ item.rate_currency }} {{ item.unit_amount_max }}{% endif %}</td>
+                    <td>{{ item.currency }} {{ item.amount }}{% if item.amount_max %} – {{ item.amount_max }}{% endif %}</td>
+                    <td>{{ item.days }}{% if item.days_max is not None %}–{{ item.days_max }}{% endif %} días</td>
+                    <td>{{ item.route_type|default:"Sin especificar" }}</td>
+                    <td>{{ item.source|default:"Sin especificar" }}</td>
+                  </tr>
+                {% endfor %}
               </tbody></table></div>
             {% else %}
-              <p class="comparison-empty">{{ result.comparison_unavailable }}</p>
+              <p class="comparison-empty">{{ result.comparison_unavailable }} Registra las tarifas de cada embarcador para comparar sus precios y tiempos de tránsito.</p>
             {% endif %}
           </section>
         {% endif %}
 
-        <!-- Fuentes informativas y nota sobre historial de cotizaciones. -->
-        <footer class="page-foot"><span>Fuente: tarifas y tiempos del informe de proyecto.</span><span>Sin histórico de cotizaciones</span></footer>
+        <footer class="page-foot"><span>Fuente: tarifas y tiempos del informe de proyecto.</span><a href="{% url 'quote_history' %}">Consultar historial de cotizaciones</a></footer>
       </div>
     </main>
   </div>
@@ -215,8 +246,13 @@
     (() => {
       const rateSelect = document.getElementById('rate_id');
       const destinationSelect = document.getElementById('destination');
-      const operationSelect = document.getElementById('operation');
-      if (!rateSelect || !destinationSelect || !operationSelect) return;
+      const targetCurrencyInput = document.getElementById('target_currency');
+      const currencyStatus = document.getElementById('currency-status');
+      const sourceCurrencySelect = document.getElementById('source_currency');
+      const currencyTarget = document.getElementById('currency-target');
+      const weightInput = document.getElementById('weight');
+      const weightUnitSelect = document.getElementById('weight_unit');
+      if (!rateSelect || !destinationSelect) return;
       const syncDestination = () => {
         const option = rateSelect.options[rateSelect.selectedIndex];
         const destination = option?.dataset?.destination;
@@ -227,33 +263,45 @@
           destinationSelect.disabled = false;
         }
       };
-      const filterRates = () => {
-        const operation = operationSelect.value;
-        let firstOption = null;
-        let selectedVisible = false;
-        for (const option of rateSelect.options) {
-          if (option.dataset.operation) {
-            option.hidden = option.dataset.operation !== operation;
-            if (!option.hidden) {
-              firstOption ??= option;
-              if (option.selected) selectedVisible = true;
-            }
-          } else if (option.dataset.emptyOperation) {
-            option.hidden = option.dataset.emptyOperation !== operation || Boolean(firstOption);
-          }
+      const updateCurrency = () => {
+        const option = rateSelect.options[rateSelect.selectedIndex];
+        const sourceCurrency = sourceCurrencySelect?.value;
+        const targetCurrency = sourceCurrency === 'USD' ? 'CLP' : sourceCurrency === 'CLP' ? 'USD' : '';
+        const needsConversion = Boolean(sourceCurrency && targetCurrency);
+        if (targetCurrencyInput) targetCurrencyInput.value = targetCurrency;
+        if (currencyTarget) currencyTarget.textContent = targetCurrency || '—';
+        if (currencyStatus && sourceCurrency) {
+          const rateCurrency = option?.dataset?.currency;
+          currencyStatus.textContent = needsConversion
+            ? `La tarifa está registrada en ${rateCurrency || 'su moneda original'}. Se calculará desde ${sourceCurrency} y se mostrará en ${targetCurrency}, usando el tipo de cambio más reciente disponible.`
+            : 'Selecciona CLP o USD para calcular la conversión.';
         }
-        if (!selectedVisible) {
-          rateSelect.value = firstOption?.value ?? '';
+      };
+      const updateWeightLimit = () => {
+        const isTonnes = weightUnitSelect?.value === 'ton';
+        if (weightInput) {
+          weightInput.max = isTonnes ? '220000' : '220000000';
+          const exceedsLimit = Number(weightInput.value) > Number(weightInput.max);
+          weightInput.setCustomValidity(
+            exceedsLimit
+              ? 'El peso máximo para cotizar es 220.000 toneladas (220.000.000 kg). Reduce el peso y vuelve a calcular.'
+              : '',
+          );
         }
-        syncDestination();
       };
       rateSelect.addEventListener('change', syncDestination);
-      operationSelect.addEventListener('change', filterRates);
+      rateSelect.addEventListener('change', updateCurrency);
+      sourceCurrencySelect?.addEventListener('change', updateCurrency);
+      weightUnitSelect?.addEventListener('change', updateWeightLimit);
+      weightInput?.addEventListener('input', updateWeightLimit);
       // Reactiva el campo antes de enviar para incluirlo en la solicitud POST.
       const form = rateSelect.closest('form');
       form?.addEventListener('submit', () => { destinationSelect.disabled = false; });
-      filterRates();
+      syncDestination();
+      updateCurrency();
+      updateWeightLimit();
     })();
   </script>
+  <script src="{% static 'cotizador/navigation.js' %}?v=3" defer></script>
 </body>
 </html>

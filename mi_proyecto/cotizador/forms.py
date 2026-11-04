@@ -2,9 +2,11 @@ import re
 from decimal import Decimal
 
 from django import forms
-from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth import get_user_model, password_validation
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.core.exceptions import ValidationError
 
-from .models import FreightRate, Route
+from .models import FreightRate, Route, UserProfile
 from .services import DESTINATIONS, format_amount
 
 
@@ -13,7 +15,6 @@ USD_RATE_STEP = 50
 CLP_RATE_MAX = 20_000_000
 CLP_RATE_STEP = 10_000
 TRANSIT_DAYS = range(1, 121)
-CHILE_ORIGIN_PORTS = DESTINATIONS
 MANUAL_SOURCE = "Tarifa ingresada por administración"
 
 
@@ -25,10 +26,185 @@ class CintacAuthenticationForm(AuthenticationForm):
     }
 
 
+class UserProfileForm(forms.ModelForm):
+    first_name = forms.CharField(label="Nombre", max_length=150)
+    last_name = forms.CharField(label="Apellidos", max_length=150, required=False)
+    email = forms.EmailField(label="Correo electrónico")
+
+    class Meta:
+        model = UserProfile
+        fields = ("rut", "avatar")
+        labels = {"rut": "RUT (opcional)", "avatar": "Foto de perfil"}
+        widgets = {
+            "avatar": forms.FileInput(
+                attrs={"accept": "image/*", "id": "profile-avatar-input", "hidden": True}
+            ),
+            "rut": forms.TextInput(attrs={"placeholder": "12.345.678-9"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        user = self.instance.user
+        self.fields["first_name"].initial = user.first_name
+        self.fields["last_name"].initial = user.last_name
+        self.fields["email"].initial = user.email
+
+    def clean_avatar(self):
+        avatar = self.cleaned_data.get("avatar")
+        if self.data.get("avatar-clear") == "on" and not self.files.get("avatar"):
+            return False
+        if avatar and avatar.size > 5 * 1024 * 1024:
+            raise forms.ValidationError("La foto no puede superar 5 MB.")
+        return avatar
+
+    def save(self, commit=True):
+        profile = super().save(commit=False)
+        user = profile.user
+        user.first_name = self.cleaned_data["first_name"]
+        user.last_name = self.cleaned_data["last_name"]
+        user.email = self.cleaned_data["email"]
+        if commit:
+            profile.save()
+            user.save(update_fields=["first_name", "last_name", "email"])
+        return profile
+
+
+class ManagedUserCreateForm(UserCreationForm):
+    email = forms.EmailField(label="Correo electrónico")
+    first_name = forms.CharField(label="Nombre", max_length=150)
+    last_name = forms.CharField(label="Apellido", max_length=150)
+    rut = forms.CharField(
+        label="RUT",
+        max_length=12,
+        required=False,
+        widget=forms.TextInput(attrs={"placeholder": "12.345.678-9"}),
+    )
+
+    class Meta(UserCreationForm.Meta):
+        model = get_user_model()
+        fields = ("username", "email", "first_name", "last_name")
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip()
+        User = get_user_model()
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError("Ya existe una cuenta con este nombre de usuario.")
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip()
+        User = get_user_model()
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("Ya existe una cuenta con este correo electrónico.")
+        return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data["email"]
+        user.first_name = self.cleaned_data["first_name"]
+        user.last_name = self.cleaned_data["last_name"]
+        if commit:
+            user.save()
+            UserProfile.objects.update_or_create(
+                user=user,
+                defaults={"rut": self.cleaned_data["rut"].strip()},
+            )
+        return user
+
+
+class ManagedUserUpdateForm(forms.ModelForm):
+    email = forms.EmailField(label="Correo electrónico")
+    first_name = forms.CharField(label="Nombre", max_length=150)
+    last_name = forms.CharField(label="Apellido", max_length=150)
+    rut = forms.CharField(
+        label="RUT",
+        max_length=12,
+        required=False,
+        widget=forms.TextInput(attrs={"placeholder": "12.345.678-9"}),
+    )
+    password1 = forms.CharField(
+        label="Nueva contraseña",
+        required=False,
+        strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+    )
+    password2 = forms.CharField(
+        label="Confirmar contraseña",
+        required=False,
+        strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+    )
+
+    class Meta:
+        model = get_user_model()
+        fields = ("username", "email", "first_name", "last_name")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["rut"].initial = self.instance.profile.rut
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip()
+        User = get_user_model()
+        if User.objects.filter(username__iexact=username).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("Ya existe una cuenta con este nombre de usuario.")
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip()
+        User = get_user_model()
+        if User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("Ya existe una cuenta con este correo electrónico.")
+        return email
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get("password1")
+        password_confirmation = cleaned_data.get("password2")
+        if password or password_confirmation:
+            if password != password_confirmation:
+                self.add_error("password2", "Las contraseñas no coinciden.")
+            elif password:
+                user = self.instance
+                for field in ("username", "email", "first_name", "last_name"):
+                    if field in cleaned_data:
+                        setattr(user, field, cleaned_data[field])
+                try:
+                    password_validation.validate_password(password, user=user)
+                except ValidationError as error:
+                    self.add_error("password1", error)
+        return cleaned_data
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        password = self.cleaned_data.get("password1")
+        if password:
+            user.set_password(password)
+        if commit:
+            user.save()
+            UserProfile.objects.update_or_create(
+                user=user,
+                defaults={"rut": self.cleaned_data["rut"].strip()},
+            )
+        return user
+
+
+class ImportRouteAdminForm(forms.ModelForm):
+    class Meta:
+        model = Route
+        fields = ("country", "origin_port")
+
+    def clean_country(self):
+        country = self.cleaned_data["country"].strip()
+        if country.casefold() == "chile":
+            raise forms.ValidationError("El origen de una importación debe estar fuera de Chile.")
+        return country
+
+
 class TariffExcelUploadForm(forms.Form):
     workbook = forms.FileField(
         label="Archivo Excel (.xlsx)",
-        help_text="Carga el libro con las hojas Importaciones y Exportaciones.",
+        help_text="Carga el libro con la hoja Importaciones.",
     )
 
     def clean_workbook(self):
@@ -45,13 +221,12 @@ class TariffExcelUploadForm(forms.Form):
 class FreightRateEntryForm(forms.ModelForm):
     origin_route = forms.ChoiceField(
         label="País y puerto de origen",
-        help_text="Elige un origen internacional para importar o un puerto chileno para exportar.",
+        help_text="Elige un puerto internacional para importar.",
     )
 
     class Meta:
         model = FreightRate
         fields = (
-            "operation",
             "destination_port",
             "carrier",
             "route_type",
@@ -65,7 +240,6 @@ class FreightRateEntryForm(forms.ModelForm):
             "source",
         )
         labels = {
-            "operation": "Tipo de operación",
             "destination_port": "Puerto de destino",
             "carrier": "Embarcador",
             "route_type": "Tipo de ruta",
@@ -87,20 +261,19 @@ class FreightRateEntryForm(forms.ModelForm):
         self._configure_numeric_choices()
 
     def _configure_route_choices(self):
-        routes = list(Route.objects.filter(rates__isnull=False).distinct())
-        routes.sort(key=lambda route: (route.country == "Chile", route.country, route.origin_port))
+        routes = list(
+            Route.objects.filter(rates__operation="import")
+            .exclude(country="Chile")
+            .distinct()
+        )
+        routes.sort(key=lambda route: (route.country, route.origin_port))
         choices = [
             (
                 f"route:{route.pk}",
-                f"{'Exportación' if route.country == 'Chile' else 'Importación'}: "
                 f"{route.origin_port}, {route.country}",
             )
             for route in routes
         ]
-        known_routes = {(route.country, route.origin_port) for route in routes}
-        for port in CHILE_ORIGIN_PORTS:
-            if ("Chile", port) not in known_routes:
-                choices.append((f"catalog:Chile|{port}", f"{port}, Chile"))
         self.fields["origin_route"].choices = choices
         self.fields["origin_route"].widget.choices = choices
         if self.instance.pk:
@@ -111,21 +284,10 @@ class FreightRateEntryForm(forms.ModelForm):
     def _configure_destination_choices(self):
         destinations = [("", "Sin destino definido")]
         destinations.extend((port, f"{port}, Chile") for port in DESTINATIONS)
-        for route in Route.objects.filter(rates__isnull=False).exclude(country="Chile").distinct().order_by(
-            "country", "origin_port"
-        ):
-            destinations.append((f"{route.origin_port}, {route.country}", f"{route.origin_port}, {route.country}"))
-
-        current_destination = self.instance.destination_port if self.instance.pk else ""
-        values = {value for value, _ in destinations}
-        if current_destination and current_destination not in values:
-            destinations.append((current_destination, current_destination))
         self.fields["destination_port"].widget = forms.Select()
         self.fields["destination_port"].choices = destinations
         self.fields["destination_port"].widget.choices = destinations
-        self.fields["destination_port"].help_text = (
-            "Elige un puerto chileno para importación o un puerto internacional para exportación."
-        )
+        self.fields["destination_port"].help_text = "Elige Valparaíso o San Antonio."
 
     def _configure_catalog_choices(self):
         carriers = list(
@@ -136,9 +298,12 @@ class FreightRateEntryForm(forms.ModelForm):
         )
         carrier_choices = [("", "Sin especificar")]
         carrier_choices.extend((carrier, carrier) for carrier in carriers)
-        self.fields["carrier"].widget = forms.Select()
-        self.fields["carrier"].choices = carrier_choices
-        self.fields["carrier"].widget.choices = carrier_choices
+        self.fields["carrier"] = forms.ChoiceField(
+            label=self.fields["carrier"].label,
+            choices=carrier_choices,
+            required=False,
+            widget=forms.Select(),
+        )
         if not carriers:
             self.fields["carrier"].help_text = "No hay embarcadores registrados; deja «Sin especificar»."
 
@@ -182,7 +347,7 @@ class FreightRateEntryForm(forms.ModelForm):
             maximum, step = USD_RATE_MAX, USD_RATE_STEP
 
         amounts = [
-            (f"{value:.2f}", format_amount(Decimal(value)))
+            (f"{value:.2f}", format_amount(Decimal(value), currency))
             for value in range(0, maximum + 1, step)
         ]
         for field_name in ("freight_20", "freight_40"):
@@ -229,19 +394,9 @@ class FreightRateEntryForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        operation = cleaned_data.get("operation")
         destination = cleaned_data.get("destination_port", "")
-        if operation == "export" and not destination:
-            self.add_error("destination_port", "La exportación requiere un puerto de destino.")
-        origin_route = cleaned_data.get("origin_route", "")
-        if operation == "export" and origin_route.startswith("catalog:"):
-            country = origin_route.partition(":")[2].partition("|")[0]
-            if country != "Chile":
-                self.add_error("origin_route", "El origen de una exportación debe estar en Chile.")
-        elif operation == "export" and origin_route.startswith("route:"):
-            route_id = origin_route.partition(":")[2]
-            if not Route.objects.filter(pk=route_id, country="Chile").exists():
-                self.add_error("origin_route", "El origen de una exportación debe estar en Chile.")
+        if destination and destination not in DESTINATIONS:
+            self.add_error("destination_port", "La importación solo admite Valparaíso o San Antonio.")
 
         for minimum_name, maximum_name in (
             ("freight_20", "freight_20_max"),

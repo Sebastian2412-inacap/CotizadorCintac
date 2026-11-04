@@ -1,0 +1,158 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Detalle de cotización | CINTAC</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'cotizador/favicon.svg' %}">
+  <script src="{% static 'cotizador/theme.js' %}?v=1"></script>
+  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}?v=14">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <a class="wordmark" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+      <div class="rail-label">COMEX</div>
+      <nav id="primary-navigation" aria-label="Navegación principal">
+        <a class="nav-link" href="{% url 'quote' %}" title="Cotizador"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Cotizador</span></a>
+        <a class="nav-link active" href="{% url 'quote_history' %}" aria-current="page" title="Historial"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Historial</span></a>
+        <a class="nav-link" href="{% url 'rates' %}" title="Tarifas"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Tarifas</span></a>
+      </nav>
+      {% include "cotizador/_profile_link.html" %}
+      <div class="rail-foot"><span class="status-dot"></span>Datos del informe<br><small>Actualización manual protegida</small></div>
+    </aside>
+    <button class="rail-toggle" type="button" aria-controls="primary-navigation" aria-expanded="true" aria-label="Ocultar menú" title="Ocultar menú">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5" /></svg>
+    </button>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="topbar-start">
+          <a class="topbar-brand" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+          <div class="breadcrumb">Operaciones <span>/</span> <a href="{% url 'quote_history' %}">Historial</a> <span>/</span> Detalle</div>
+        </div>
+        <div class="account-controls">
+          <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro" title="Activar modo oscuro">
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" /></svg>
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z" /></svg>
+          </button>
+          <span class="account-name">{{ request.user.username }}</span>
+          <a class="admin-link" href="/admin/">Administración <span aria-hidden="true">↗</span></a>
+          <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="logout-button" type="submit">Cerrar sesión</button>
+          </form>
+        </div>
+      </header>
+
+      <div class="page-wrap history-wrap">
+        <section class="intro">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-line"></span>DETALLE GUARDADO</div>
+            <h1>Cotización <em>{{ quote.created_at|date:"d/m/Y" }}</em></h1>
+            <p>{{ quote.created_at|date:"H:i" }} · Realizada por {% firstof quote.user.get_full_name quote.user.username %} · Importación marítima · {{ quote.origin_port }}, {{ quote.origin_country }} → {{ quote.destination }}</p>
+          </div>
+          <div class="history-detail-actions">
+            <a class="export-button history-export-button" href="{% url 'quote_history_excel' quote.pk %}"><span aria-hidden="true">↓</span> Exportar a Excel</a>
+            <a class="rates-add-button history-back-link" href="{% url 'quote_history' %}">← Volver al historial</a>
+          </div>
+        </section>
+
+        {% if not details.is_complete_snapshot %}
+          <div class="alert" role="status">{{ details.comparison_unavailable }}</div>
+        {% endif %}
+
+        <section class="panel result-panel history-detail-panel" aria-labelledby="detail-result-title">
+          <div class="panel-heading result-heading">
+            <div><span class="step-label">DETALLE DE LA COTIZACIÓN</span><h2 id="detail-result-title">Resultado guardado</h2></div>
+            <span class="result-orbit" aria-hidden="true">C</span>
+          </div>
+          <div class="route-line"><span>{{ quote.origin_port }}, {{ quote.origin_country }}</span><i></i><span>{{ quote.destination }}</span></div>
+          <div class="result-number">
+            <span>MENOR PRESUPUESTO ESTIMADO · TARIFA MÍNIMA · {{ details.currency }}</span>
+            <strong>{{ details.amount }}{% if details.amount_max %} – {{ details.amount_max }}{% endif %}</strong>
+          </div>
+          <p class="result-original">Opción de menor costo:
+            <strong>{{ details.recommendation.quantity }} contenedor{% if details.recommendation.quantity != 1 %}es{% endif %} de {{ details.recommendation.size }} pies</strong>
+          </p>
+
+          <h3 class="container-comparison-title">Comparativa de contenedores</h3>
+          <div class="container-comparison">
+            {% for option in details.container_options %}
+              <article class="container-option{% if option.recommended %} recommended-option{% endif %}">
+                <header class="container-option-heading">
+                  <div>
+                    <h4>Contenedor de {{ option.size }} pies</h4>
+                    <span class="container-capacity">Capacidad máxima: {{ option.capacity }} TN por contenedor</span>
+                  </div>
+                  {% if option.recommended %}<span class="recommended-badge">Menor costo</span>{% endif %}
+                </header>
+                <div class="container-quantity">
+                  <span>Cantidad necesaria para {{ details.tonnes }} TN</span>
+                  <strong>{{ option.quantity }} contenedor{% if option.quantity != 1 %}es{% endif %}</strong>
+                </div>
+                <div class="container-option-prices">
+                  <div class="container-unit-price">
+                    <span>Tarifa por unidad</span>
+                    <strong>{{ option.rate_currency }} {{ option.unit_amount }}</strong>
+                    {% if option.unit_amount_max %}<small>Hasta {{ option.rate_currency }} {{ option.unit_amount_max }}</small>{% endif %}
+                  </div>
+                  <div class="container-total-price">
+                    <span>Total estimado</span>
+                    <strong>{{ option.currency }} {{ option.amount }}{% if option.amount_max %} – {{ option.amount_max }}{% endif %}</strong>
+                    <small>Base: {{ option.source_currency }} {{ option.source_amount_formatted }}{% if option.source_amount_max_formatted %} – {{ option.source_amount_max_formatted }}{% endif %}</small>
+                  </div>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+
+          <div class="result-rows">
+            <div><span>Peso informado</span><strong>{{ details.weight }} {{ details.weight_unit }}</strong></div>
+            <div><span>Peso convertido</span><strong>{{ details.tonnes }} TN</strong></div>
+            <div><span>Tránsito base</span><strong>{{ details.base_days }}{% if details.base_days_max is not None %}–{{ details.base_days_max }}{% endif %} días</strong></div>
+            <div><span>Margen agregado</span><strong>+{{ details.margin_days }} días</strong></div>
+            <div class="total-row"><span>Tiempo estimado</span><strong>{{ details.total_days }}{% if details.total_days_max is not None %}–{{ details.total_days_max }}{% endif %} días</strong></div>
+          </div>
+          {% if details.converted and details.exchange_rate %}
+            <p class="result-foot">Tipo de cambio aplicado: 1 USD = {{ details.exchange_rate }} CLP{% if details.exchange_rate_date %}, publicado el {{ details.exchange_rate_date }}{% endif %}.</p>
+          {% endif %}
+          {% if details.route_type %}<p class="result-foot">Tipo de ruta: {{ details.route_type }}.</p>{% endif %}
+          {% if details.source %}<p class="result-foot">Fuente: {{ details.source }}.</p>{% endif %}
+          {% if details.is_complete_snapshot %}<p class="result-foot">Seguro excluido. Los rangos referenciales deben confirmarse antes de reservar.</p>{% endif %}
+        </section>
+
+        <section class="comparison-panel history-detail-comparison">
+          <div class="comparison-heading">
+            <div><span class="step-label">PRECIO Y TRÁNSITO</span><h2>Comparación de alternativas</h2></div>
+            <span class="comparison-caption">{{ quote.origin_port }} → {{ quote.destination }} · {{ details.recommendation.quantity }} contenedor{% if details.recommendation.quantity != 1 %}es{% endif %} de {{ details.recommendation.size }} pies</span>
+          </div>
+          {% if details.comparisons %}
+            <div class="table-scroll"><table>
+              <thead><tr><th>Embarcador</th><th>Tarifa por contenedor</th><th>Total estimado</th><th>Tránsito estimado</th><th>Tipo de ruta</th><th>Fuente / referencia</th></tr></thead>
+              <tbody>
+                {% for item in details.comparisons %}
+                  <tr>
+                    <td>{{ item.carrier }}</td>
+                    <td>{{ item.rate_currency }} {{ item.unit_amount }}{% if item.unit_amount_max %} – {{ item.rate_currency }} {{ item.unit_amount_max }}{% endif %}</td>
+                    <td>{{ item.currency }} {{ item.amount }}{% if item.amount_max %} – {{ item.amount_max }}{% endif %}</td>
+                    <td>{{ item.days }}{% if item.days_max is not None %}–{{ item.days_max }}{% endif %} días</td>
+                    <td>{{ item.route_type|default:"Sin especificar" }}</td>
+                    <td>{{ item.source|default:"Sin especificar" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table></div>
+          {% else %}
+            <p class="comparison-empty">{{ details.comparison_unavailable|default:"No había otras tarifas disponibles para comparar al momento de cotizar." }}</p>
+          {% endif %}
+        </section>
+
+        <footer class="page-foot"><span>Detalle de los valores guardados al momento de cotizar.</span><a href="{% url 'quote' %}">Volver al cotizador</a></footer>
+      </div>
+    </main>
+  </div>
+  <script src="{% static 'cotizador/navigation.js' %}?v=3" defer></script>
+</body>
+</html>

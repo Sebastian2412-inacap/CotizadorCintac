@@ -1,4 +1,7 @@
-.venv/
+.venv*/
+venv/
+env/
 __pycache__/
 *.py[cod]
 db.sqlite3
+mi_proyecto/media/

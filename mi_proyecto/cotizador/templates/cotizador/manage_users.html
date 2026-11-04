@@ -1,0 +1,112 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administrar usuarios | CINTAC</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'cotizador/favicon.svg' %}">
+  <script src="{% static 'cotizador/theme.js' %}?v=1"></script>
+  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}?v=16">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <a class="wordmark" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+      <div class="rail-label">COMEX</div>
+      <nav id="primary-navigation" aria-label="Navegación principal">
+        <a class="nav-link" href="{% url 'quote' %}" title="Cotizador"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Cotizador</span></a>
+        <a class="nav-link" href="{% url 'quote_history' %}" title="Historial"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Historial</span></a>
+        <a class="nav-link" href="{% url 'rates' %}" title="Tarifas"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Tarifas</span></a>
+      </nav>
+      {% include "cotizador/_profile_link.html" with active_page="users" %}
+      <div class="rail-foot"><span class="status-dot"></span>Administración de cuentas<br><small>Acceso restringido</small></div>
+    </aside>
+    <button class="rail-toggle" type="button" aria-controls="primary-navigation" aria-expanded="true" aria-label="Ocultar menú" title="Ocultar menú">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5" /></svg>
+    </button>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="topbar-start">
+          <a class="topbar-brand" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+          <div class="breadcrumb">Administración <span>/</span> Usuarios</div>
+        </div>
+        <div class="account-controls">
+          <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro" title="Activar modo oscuro">
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42 1.42" /></svg>
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z" /></svg>
+          </button>
+          <span class="account-name">{{ request.user.username }}</span>
+          <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="logout-button" type="submit">Cerrar sesión</button>
+          </form>
+        </div>
+      </header>
+
+      <div class="page-wrap rates-wrap">
+        <section class="intro rates-intro">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-line"></span>ACCESO EXCLUSIVO</div>
+            <h1>Administrar <em>usuarios</em></h1>
+            <p>Busca una cuenta y elimínala directamente desde esta página.</p>
+          </div>
+          <p class="rates-summary">{{ total_users }} cuenta{% if total_users != 1 %}s{% endif %}</p>
+        </section>
+
+        {% if messages %}{% for message in messages %}<div class="alert" role="status">{{ message }}</div>{% endfor %}{% endif %}
+        <div class="rates-actions">
+          <a class="rates-add-button" href="{% url 'create_managed_user' %}">+ Crear usuario</a>
+        </div>
+        <form class="rates-filter" method="get" role="search">
+          <input type="search" name="q" value="{{ search }}" placeholder="Buscar usuario, nombre o correo" aria-label="Buscar usuarios">
+          <button type="submit">Buscar</button>
+        </form>
+
+        <p class="user-management-warning">Al eliminar una cuenta también se borran permanentemente su perfil y sus cotizaciones. Tu cuenta, los superusuarios y otras cuentas de administración están protegidos.</p>
+
+        <section class="panel rates-table-panel" aria-label="Usuarios">
+          {% if users %}
+            <div class="rates-table-scroll">
+              <table class="rates-table user-management-table">
+                <thead>
+                  <tr><th>Usuario</th><th>Nombre</th><th>Correo</th><th>RUT</th><th>Estado</th><th>Acciones</th></tr>
+                </thead>
+                <tbody>
+                  {% for user in users %}
+                    <tr>
+                      <td><strong>{{ user.username }}</strong></td>
+                      <td>{% firstof user.get_full_name "—" %}</td>
+                      <td>{{ user.email|default:"—" }}</td>
+                      <td>{{ user.profile.rut|default:"—" }}</td>
+                      <td>{% if user.is_active %}Activo{% else %}Desactivado{% endif %}</td>
+                      <td class="managed-user-actions">
+                        <a class="rates-edit-link" href="{% url 'edit_managed_user' user.pk %}">Editar</a>
+                        <form method="post" action="{% url 'delete_managed_user' user.pk %}" onsubmit="return confirm('¿Eliminar esta cuenta y todas sus cotizaciones? Esta acción no se puede deshacer.');">
+                          {% csrf_token %}
+                          <button class="user-delete-button" type="submit" aria-label="Eliminar usuario {{ user.username }}">Eliminar</button>
+                        </form>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% if page_obj.has_other_pages %}
+              <nav class="rates-pagination" aria-label="Paginación de usuarios">
+                {% if page_obj.has_previous %}<a href="?q={{ search|urlencode }}&amp;page={{ page_obj.previous_page_number }}">Anterior</a>{% endif %}
+                <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}<a href="?q={{ search|urlencode }}&amp;page={{ page_obj.next_page_number }}">Siguiente</a>{% endif %}
+              </nav>
+            {% endif %}
+          {% else %}
+            <p class="rates-empty">{% if search %}No se encontraron cuentas con esa búsqueda.{% else %}No hay otras cuentas que se puedan eliminar.{% endif %}</p>
+          {% endif %}
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="{% static 'cotizador/navigation.js' %}?v=3" defer></script>
+</body>
+</html>

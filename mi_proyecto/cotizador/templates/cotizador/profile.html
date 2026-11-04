@@ -1,0 +1,125 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mi perfil | CINTAC</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'cotizador/favicon.svg' %}">
+  <script src="{% static 'cotizador/theme.js' %}?v=1"></script>
+  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}?v=16">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <a class="wordmark" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+      <div class="rail-label">COMEX</div>
+      <nav id="primary-navigation" aria-label="Navegación principal">
+        <a class="nav-link" href="{% url 'quote' %}" title="Cotizador"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Cotizador</span></a>
+        <a class="nav-link" href="{% url 'quote_history' %}" title="Historial"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Historial</span></a>
+        <a class="nav-link" href="{% url 'rates' %}" title="Tarifas"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Tarifas</span></a>
+      </nav>
+      {% include "cotizador/_profile_link.html" with active_page="profile" %}
+      <div class="rail-foot"><span class="status-dot"></span>Datos del informe<br><small>Actualización manual protegida</small></div>
+    </aside>
+    <button class="rail-toggle" type="button" aria-controls="primary-navigation" aria-expanded="true" aria-label="Ocultar menú" title="Ocultar menú">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5" /></svg>
+    </button>
+    <main class="main-area">
+      <header class="topbar">
+        <div class="topbar-start">
+          <a class="topbar-brand" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+          <div class="breadcrumb">Cuenta <span>/</span> Mi perfil</div>
+        </div>
+        <div class="account-controls">
+          <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro" title="Activar modo oscuro">
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42 1.42" /></svg>
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z" /></svg>
+          </button>
+          <span class="account-name">{{ request.user.username }}</span>
+          <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="logout-button" type="submit">Cerrar sesión</button>
+          </form>
+        </div>
+      </header>
+      <div class="page-wrap profile-wrap">
+        <section class="intro">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-line"></span>CUENTA PERSONAL</div>
+            <h1>Mi <em>perfil</em></h1>
+            <p>Revisa y actualiza los datos de tu cuenta.</p>
+          </div>
+        </section>
+        <section class="panel profile-panel{% if form.is_bound %} is-editing{% endif %}" aria-labelledby="profile-title">
+          <div class="profile-heading">
+            <div class="profile-avatar-control">
+              <button class="profile-avatar-trigger" type="button" aria-expanded="false" aria-controls="profile-avatar-menu" aria-label="Opciones de foto de perfil">
+                {% if request.user.profile.avatar %}
+                  <img class="profile-avatar" src="{{ request.user.profile.avatar.url }}" alt="">
+                  <span class="profile-avatar profile-avatar-placeholder" aria-hidden="true" hidden>{{ request.user.first_name|default:request.user.username|slice:":1"|upper }}</span>
+                {% else %}
+                  <img class="profile-avatar" alt="" hidden>
+                  <span class="profile-avatar profile-avatar-placeholder" aria-hidden="true">{{ request.user.first_name|default:request.user.username|slice:":1"|upper }}</span>
+                {% endif %}
+              </button>
+              <div class="profile-avatar-menu" id="profile-avatar-menu" hidden>
+                <button type="button" data-avatar-edit>Editar foto de perfil</button>
+                {% if request.user.profile.avatar %}<button type="button" data-avatar-remove>Quitar foto de perfil</button>{% endif %}
+              </div>
+            </div>
+            <div>
+              <h2 id="profile-title">{% firstof request.user.get_full_name request.user.username %}</h2>
+              <p>Usuario: {{ request.user.username }}</p>
+            </div>
+          </div>
+          {% if messages %}
+            {% for message in messages %}<div class="profile-message" role="status">{{ message }}</div>{% endfor %}
+          {% endif %}
+          {% if form.non_field_errors %}<div class="alert" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+          <div class="profile-details" id="profile-details"{% if form.is_bound %} hidden{% endif %}>
+            <div class="profile-detail">
+              <span>Nombre</span>
+              <strong>{{ request.user.first_name|default:"No informado" }}</strong>
+            </div>
+            <div class="profile-detail">
+              <span>Apellidos</span>
+              <strong>{{ request.user.last_name|default:"No informados" }}</strong>
+            </div>
+            <div class="profile-detail">
+              <span>Correo electrónico</span>
+              <strong>{{ request.user.email|default:"No informado" }}</strong>
+            </div>
+            <div class="profile-detail">
+              <span>RUT</span>
+              <strong>{{ request.user.profile.rut|default:"No informado" }}</strong>
+            </div>
+            <button class="login-button profile-edit-toggle" type="button" aria-expanded="false" aria-controls="profile-edit-form">Editar perfil</button>
+          </div>
+          <form method="post" enctype="multipart/form-data" class="profile-form" id="profile-edit-form"{% if not form.is_bound %} hidden{% endif %}>
+            {% csrf_token %}
+            {% for field in form %}
+              <div class="profile-field{% if field.name == 'avatar' %} profile-field-wide{% endif %}">
+                {% if field.name == 'avatar' %}
+                  {{ field }}
+                  <input type="checkbox" name="avatar-clear" id="avatar-clear" hidden>
+                {% else %}
+                  {{ field.label_tag }}
+                  {{ field }}
+                {% endif %}
+                {% for error in field.errors %}<p class="login-field-error">{{ error }}</p>{% endfor %}
+              </div>
+            {% endfor %}
+            <div class="profile-actions">
+              <button class="profile-cancel" type="button" data-profile-cancel>Cancelar</button>
+              <button class="login-button" type="submit">Guardar perfil</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="{% static 'cotizador/navigation.js' %}?v=3" defer></script>
+  <script src="{% static 'cotizador/profile.js' %}?v=2" defer></script>
+</body>
+</html>

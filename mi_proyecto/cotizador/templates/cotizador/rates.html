@@ -6,24 +6,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tarifas cargadas | CINTAC</title>
   <link rel="icon" type="image/svg+xml" href="{% static 'cotizador/favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}">
+  <script src="{% static 'cotizador/theme.js' %}?v=1"></script>
+  <link rel="stylesheet" href="{% static 'cotizador/app.css' %}?v=14">
 </head>
 <body>
   <div class="shell">
     <aside class="rail">
       <a class="wordmark" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
       <div class="rail-label">COMEX</div>
-      <nav aria-label="Navegación principal">
-        <a class="nav-link" href="{% url 'quote' %}"><span class="nav-mark"></span>Cotizador</a>
-        <a class="nav-link active" href="{% url 'rates' %}" aria-current="page"><span class="nav-mark"></span>Tarifas</a>
+      <nav id="primary-navigation" aria-label="Navegación principal">
+        <a class="nav-link" href="{% url 'quote' %}" title="Cotizador"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Cotizador</span></a>
+        <a class="nav-link" href="{% url 'quote_history' %}" title="Historial"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Historial</span></a>
+        <a class="nav-link active" href="{% url 'rates' %}" aria-current="page" title="Tarifas"><span class="nav-mark" aria-hidden="true"></span><span class="nav-label">Tarifas</span></a>
       </nav>
+      {% include "cotizador/_profile_link.html" %}
       <div class="rail-foot"><span class="status-dot"></span>Datos del informe<br><small>Actualización manual protegida</small></div>
     </aside>
+    <button class="rail-toggle" type="button" aria-controls="primary-navigation" aria-expanded="true" aria-label="Ocultar menú" title="Ocultar menú">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5" /></svg>
+    </button>
 
     <main class="main-area">
       <header class="topbar">
-        <div class="breadcrumb">Operaciones <span>/</span> Tarifas</div>
+        <div class="topbar-start">
+          <a class="topbar-brand" href="{% url 'quote' %}" aria-label="CINTAC, inicio">CINTAC<span>.</span></a>
+          <div class="breadcrumb">Operaciones <span>/</span> Tarifas</div>
+        </div>
         <div class="account-controls">
+          <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro" title="Activar modo oscuro">
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" /></svg>
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z" /></svg>
+          </button>
           <span class="account-name">{{ request.user.username }}</span>
           {% if perms.cotizador.view_freightrate %}
             <a class="admin-link" href="{% url 'admin:cotizador_freightrate_changelist' %}">Administración <span aria-hidden="true">↗</span></a>
@@ -46,14 +59,7 @@
         </section>
 
         {% if messages %}{% for message in messages %}<div class="alert" role="status">{{ message }}</div>{% endfor %}{% endif %}
-        <nav class="rates-tabs" aria-label="Filtrar tarifas por operación">
-          <a class="{% if operation == 'all' %}active{% endif %}" href="{% url 'rates' %}?operation=all">Todas</a>
-          <a class="{% if operation == 'import' %}active{% endif %}" href="{% url 'rates' %}?operation=import">Importaciones</a>
-          <a class="{% if operation == 'export' %}active{% endif %}" href="{% url 'rates' %}?operation=export">Exportaciones</a>
-        </nav>
-
         <form class="rates-filter" method="get" role="search">
-          <input type="hidden" name="operation" value="{{ operation }}">
           <input type="search" name="q" value="{{ search }}" placeholder="Buscar país, puerto, destino, embarcador o fuente" aria-label="Buscar tarifas">
           <button type="submit">Buscar tarifas</button>
         </form>
@@ -82,7 +88,7 @@
                   {% for row in rate_rows %}
                     {% with rate=row.rate %}
                     <tr>
-                      <td><span class="rates-operation">{{ rate.get_operation_display }}</span><span class="rates-route">{{ rate.route.origin_port }}</span><span class="rates-muted">{{ rate.route.country }}</span></td>
+                      <td><span class="rates-operation">Importación</span><span class="rates-route">{{ rate.route.origin_port }}</span><span class="rates-muted">{{ rate.route.country }}</span></td>
                       <td>{% if rate.destination_port %}{{ rate.destination_port }}{% else %}Según cotización{% endif %}</td>
                       <td class="rates-price">{{ rate.currency }} {{ row.freight_20 }}{% if row.freight_20_max %} – {{ rate.currency }} {{ row.freight_20_max }}{% endif %}</td>
                       <td class="rates-price">{{ rate.currency }} {{ row.freight_40 }}{% if row.freight_40_max %} – {{ rate.currency }} {{ row.freight_40_max }}{% endif %}</td>
@@ -116,5 +122,6 @@
       </div>
     </main>
   </div>
+  <script src="{% static 'cotizador/navigation.js' %}?v=3" defer></script>
 </body>
 </html>
